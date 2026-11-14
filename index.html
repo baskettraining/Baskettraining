@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BASKET TRAINING</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Nunito','Segoe UI',system-ui,sans-serif; -webkit-tap-highlight-color:transparent; }
+  :root {
+    --red: #ff003c;
+    --red-soft: #ff4d6d;
+    --red-glow: rgba(255,0,60,0.7);
+    --bg: #000000;
+    --panel: rgba(10,0,5,0.92);
+    --line: rgba(255,0,60,0.25);
+  }
+  html { scroll-behavior:smooth; }
+  body { background:#000; color:#e8e8f0; min-height:100vh; padding:20px; overflow-x:hidden; position:relative; }
+
+  /* ===== СНЕГ ===== */
+  #snow { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+  .flake { position:absolute; top:-10px; background:#fff; border-radius:50%; will-change:transform; animation: fall linear infinite; transform:translateZ(0); }
+  @keyframes fall { 0%{transform:translate3d(0,-20px,0);opacity:.7} 100%{transform:translate3d(var(--drift,20px),105vh,0);opacity:0} }
+
+  /* ===== ИНТРО (60fps) ===== */
+  #intro {
+    position:fixed; inset:0; background:#000; z-index:1000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    overflow:hidden; transition:opacity .7s ease;
+    gap: 0.35em;
+    contain: layout style paint;
+    perspective: 1000px;
+  }
+  #intro.hide { opacity:0; pointer-events:none; }
+
+  .intro-word {
+    font-size:clamp(2rem,11vw,5rem); font-weight:900; letter-spacing:8px;
+    color:var(--red); text-shadow:0 0 20px var(--red-glow),0 0 50px var(--red-glow);
+    white-space:nowrap; opacity:0;
+    position:relative; z-index:2;
+    will-change:transform,opacity;
+    backface-visibility:hidden;
+    transform:translate3d(0,0,0);
+  }
+  .intro-top    { animation: slideInLeft  1.4s cubic-bezier(.22,.8,.28,1) .1s forwards; }
+  .intro-bottom { animation: slideInRight 1.4s cubic-bezier(.22,.8,.28,1) .1s forwards; }
+  @keyframes slideInLeft  { 0%{transform:translate3d(-120vw,0,0);opacity:0} 60%{opacity:1} 100%{transform:translate3d(0,0,0);opacity:1} }
+  @keyframes slideInRight { 0%{transform:translate3d(120vw,0,0);opacity:0} 60%{opacity:1} 100%{transform:translate3d(0,0,0);opacity:1} }
+
+  /* ===== ПУЛЯ (60fps, GPU) ===== */
+  .bullet-wrap {
+    position:absolute; top:50%; left:0;
+    width:100%; height:8px;
+    transform:translate3d(0,-50%,0);
+    pointer-events:none;
+    z-index:1;
+    will-change:transform;
+  }
+  .bullet {
+    position:absolute; top:0; left:-220px;
+    width:200px; height:8px;
+    transform:translate3d(0,0,0);
+    border-radius:8px;
+    background:linear-gradient(90deg,
+      rgba(170,0,255,0) 0%,
+      rgba(170,0,255,0.4) 15%,
+      #a000ff 40%,
+      #d966ff 65%,
+      #ffffff 90%,
+      #ffffff 100%);
+    animation: bulletFly 1.6s cubic-bezier(.65,0,.35,1) .6s forwards;
+    opacity:0;
+    will-change:transform,opacity;
+    backface-visibility:hidden;
+  }
+  .bullet::after {
+    content:''; position:absolute; right:0; top:50%;
+    width:16px; height:16px; border-radius:50%;
+    transform:translate3d(50%,-50%,0) scale(1);
+    background:radial-gradient(circle, #ffffff 0%, #d966ff 35%, #a000ff 60%, transparent 100%);
+    animation: headGlow 0.8s ease-in-out infinite alternate;
+    will-change:transform;
+  }
+  @keyframes headGlow {
+    from { transform:translate3d(50%,-50%,0) scale(1); }
+    to   { transform:translate3d(50%,-50%,0) scale(1.15); }
+  }
+  @keyframes bulletFly {
+    0%   { transform:translate3d(0,0,0); opacity:0; }
+    10%  { opacity:1; }
+    90%  { opacity:1; }
+    100% { transform:translate3d(calc(100vw + 400px),0,0); opacity:0; }
+  }
+
+  /* Волна 1 — размытая без границ */
+  .bullet-flash {
+    position:absolute; top:50%; left:50%;
+    width:40px; height:40px; border-radius:50%;
+    transform:translate3d(-50%,-50%,0) scale(0);
+    background:radial-gradient(circle,
+      rgba(255,255,255,0.9) 0%,
+      rgba(217,102,255,0.8) 20%,
+      rgba(160,0,255,0.6) 45%,
+      rgba(160,0,255,0.2) 70%,
+      transparent 100%);
+    opacity:0; pointer-events:none; z-index:1;
+    animation: bulletFlash 0.9s ease-out 1.35s forwards;
+    will-change:transform,opacity;
+    filter:blur(4px);
+    transform-origin:center;
+    backface-visibility:hidden;
+  }
+  @keyframes bulletFlash {
+    0%   { transform:translate3d(-50%,-50%,0) scale(0); opacity:0; }
+    25%  { transform:translate3d(-50%,-50%,0) scale(6); opacity:0.9; }
+    100% { transform:translate3d(-50%,-50%,0) scale(24); opacity:0; }
+  }
+
+  /* Волна 2 — шире, мягче */
+  .bullet-flash-2 {
+    position:absolute; top:50%; left:50%;
+    width:40px; height:40px; border-radius:50%;
+    transform:translate3d(-50%,-50%,0) scale(0);
+    background:radial-gradient(circle,
+      rgba(217,102,255,0.7) 0%,
+      rgba(160,0,255,0.4) 40%,
+      transparent 100%);
+    opacity:0; pointer-events:none; z-index:1;
+    animation: bulletFlash2 1.1s ease-out 1.4s forwards;
+    will-change:transform,opacity;
+    filter:blur(8px);
+    transform-origin:center;
+    backface-visibility:hidden;
+  }
+  @keyframes bulletFlash2 {
+    0%   { transform:translate3d(-50%,-50%,0) scale(0); opacity:0; }
+    30%  { transform:translate3d(-50%,-50%,0) scale(10); opacity:0.6; }
+    100% { transform:translate3d(-50%,-50%,0) scale(35); opacity:0; }
+  }
+
+  .wrap { max-width:1100px; margin:0 auto; position:relative; z-index:2; }
+  h1 { font-size:2.4rem; text-align:center; margin-bottom:6px; color:var(--red); letter-spacing:2px; font-weight:900; text-shadow:0 0 20px var(--red-glow),0 0 40px rgba(255,0,60,.4); }
+  .sub { text-align:center; color:#555; margin-bottom:26px; letter-spacing:4px; font-size:.7rem; text-transform:uppercase; }
+
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:18px; box-shadow:0 0 25px rgba(255,0,60,.06); transition:border-color .25s ease,box-shadow .25s ease; }
+  .card:hover { border-color:rgba(255,0,60,.5); box-shadow:0 0 35px rgba(255,0,60,.12); }
+
+  label { display:block; font-size:.7rem; color:var(--red-soft); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:700; }
+  input, select { width:100%; padding:12px; background:rgba(0,0,0,.7); border:1px solid rgba(255,0,60,.25); border-radius:8px; color:#fff; font-size:16px; outline:none; transition:border-color .2s ease,box-shadow .2s ease; height:48px; }
+  input:focus, select:focus { border-color:var(--red); box-shadow:0 0 15px rgba(255,0,60,.4); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:14px; align-items:end; }
+  .field { display:flex; flex-direction:column; }
+  .field label { min-height:20px; line-height:20px; }
+  .req::after { content:' *'; color:var(--red); }
+
+  button { background:var(--red); border:none; padding:14px 26px; border-radius:10px; color:#fff; font-weight:800; font-size:.95rem; cursor:pointer; text-transform:uppercase; letter-spacing:2px; box-shadow:0 0 20px rgba(255,0,60,.5); transition:transform .15s ease,box-shadow .2s ease,background .2s ease; width:100%; }
+  button:hover { background:#ff1a4f; box-shadow:0 0 32px rgba(255,0,60,.8); }
+  button:active { transform:scale(.98); }
+  .btn-secondary { background:#1a0005; border:1px solid var(--red); color:var(--red); box-shadow:none; }
+  .btn-secondary:hover { background:rgba(255,0,60,.1); box-shadow:0 0 20px rgba(255,0,60,.4); }
+
+  .hidden { display:none !important; }
+
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+  .stat { background:rgba(255,0,60,.05); border:1px solid var(--line); border-radius:10px; padding:12px; text-align:center; transition:transform .2s ease,border-color .2s ease; }
+  .stat:hover { transform:translateY(-2px); border-color:var(--red); }
+  .stat .val { font-size:1.5rem; font-weight:800; color:var(--red); text-shadow:0 0 10px rgba(255,0,60,.6); }
+  .stat .lbl { font-size:.65rem; color:#777; text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+
+  .day-tabs { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:14px; scrollbar-width:none; }
+  .day-tabs::-webkit-scrollbar { display:none; }
+  .day-tab { padding:10px 16px; background:rgba(0,0,0,.6); border:1px solid var(--line); border-radius:9px; cursor:pointer; white-space:nowrap; font-size:.85rem; transition:all .2s ease; font-weight:700; color:#aaa; position:relative; }
+  .day-tab.active { background:var(--red); color:#fff; border-color:var(--red); box-shadow:0 0 20px rgba(255,0,60,.6); }
+  .day-tab.empty { border-style:dashed; opacity:0.55; }
+  .day-tab .dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--red); margin-left:5px; vertical-align:middle; }
+  .day-tab.active .dot { background:#fff; }
+
+  .task { display:flex; align-items:flex-start; gap:12px; padding:15px; background:rgba(0,0,0,.5); border:1px solid rgba(255,0,60,.12); border-radius:10px; margin-bottom:9px; transition:all .2s ease; }
+  .task:hover { border-color:var(--red); background:rgba(255,0,60,.06); }
+  .task.done { opacity:.45; border-color:rgba(255,0,60,.5); }
+  .task.done .task-title { text-decoration:line-through; }
+  .check { width:22px; height:22px; min-width:22px; border-radius:5px; border:2px solid var(--red); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; color:#fff; transition:all .2s ease; margin-top:2px; cursor:pointer; }
+  .task.done .check { background:var(--red); }
+  .task-title { font-weight:700; margin-bottom:4px; font-size:.92rem; }
+  .task-desc { font-size:.78rem; color:#888; line-height:1.4; }
+  .task-tag { display:inline-block; font-size:.6rem; padding:2px 8px; border-radius:20px; margin-top:6px; text-transform:uppercase; letter-spacing:1px; font-weight:700; border:1px solid var(--red); color:var(--red); }
+
+  .progress-bar { height:6px; background:rgba(255,0,60,.1); border-radius:3px; overflow:hidden; margin:12px 0 6px; }
+  .progress-fill { height:100%; background:var(--red); transition:width .5s ease; box-shadow:0 0 10px var(--red); }
+
+  .coach { border-left:3px solid var(--red); }
+  .coach h3 { color:var(--red); margin-bottom:10px; font-size:1rem; letter-spacing:1px; }
+  .coach p { line-height:1.6; color:#bbb; font-size:.88rem; margin-bottom:8px; }
+  .coach b { color:var(--red-soft); }
+
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:100; display:flex; align-items:center; justify-content:center; padding:16px; overflow-y:auto; animation:fadeIn .2s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .modal { background:#080002; border:1px solid var(--red); border-radius:16px; padding:22px; max-width:560px; width:100%; box-shadow:0 0 50px rgba(255,0,60,.4); animation:pop .25s ease; max-height:92vh; overflow-y:auto; }
+  @keyframes pop { from{transform:scale(.94);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal h3 { color:var(--red); margin-bottom:6px; font-size:1.1rem; }
+  .modal .hint { font-size:.82rem; color:#999; margin-bottom:16px; line-height:1.4; }
+  svg { width:100%; height:auto; display:block; }
+  .close-btn { margin-top:14px; background:transparent; border:1px solid var(--red); color:var(--red); box-shadow:none; }
+  .close-btn:hover { background:rgba(255,0,60,.1); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .pulse { animation:pulse 1.6s ease-in-out infinite; }
+
+  .logout { font-size:.7rem; color:#666; cursor:pointer; text-align:right; }
+  .logout:hover { color:var(--red); }
+
+  .result-input { margin:16px 0; }
+  .result-info { font-size:.85rem; color:#999; margin-bottom:8px; }
+  .result-info b { color:var(--red); }
+
+  /* ===== КАРТОЧКА ===== */
+  .player-card {
+    position:relative; z-index:3;
+    background:linear-gradient(145deg, #1a0005 0%, #0a0002 100%);
+    border:2px solid var(--line);
+    border-radius:16px; padding:18px;
+    margin-bottom:18px; overflow:hidden;
+    box-shadow:0 0 30px rgba(255,0,60,0.15);
+    transition:box-shadow .4s ease, border-color .4s ease;
+  }
+  .player-card .card-bg-photo {
+    position:absolute; inset:0;
+    background-size:cover; background-position:center;
+    opacity:0.28;
+    filter:blur(2px) saturate(1.2);
+    z-index:0; pointer-events:none;
+    transition:opacity .4s ease;
+  }
+  .player-card .card-bg-overlay {
+    position:absolute; inset:0;
+    background:linear-gradient(145deg, rgba(26,0,5,0.6) 0%, rgba(10,0,2,0.85) 100%);
+    z-index:0; pointer-events:none;
+  }
+  .player-card::before {
+    content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%;
+    background:conic-gradient(from 0deg, transparent, var(--card-color, #ff003c), transparent 30%);
+    opacity:0.08; animation: rotate 8s linear infinite; pointer-events:none;
+    z-index:1;
+  }
+  @keyframes rotate { to { transform: rotate(360deg); } }
+  .player-card.tier-bronze   { --card-color:#cd7f32; border-color:rgba(205,127,50,.6); box-shadow:0 0 30px rgba(205,127,50,.3); }
+  .player-card.tier-silver   { --card-color:#e0e0e0; border-color:rgba(224,224,224,.7); box-shadow:0 0 35px rgba(224,224,224,.35); }
+  .player-card.tier-gold     { --card-color:#ffd700; border-color:rgba(255,215,0,.8); box-shadow:0 0 45px rgba(255,215,0,.5); }
+  .player-card.tier-diamond  { --card-color:#00fff7; border-color:rgba(0,255,247,.9); box-shadow:0 0 55px rgba(0,255,247,.6); }
+
+  .card-inner { position:relative; z-index:2; }
+  .card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; gap:10px; }
+  .card-avatar-wrap {
+    position:relative; width:70px; height:70px; flex-shrink:0;
+    border-radius:50%; padding:3px;
+    background:linear-gradient(135deg, var(--card-color, #ff003c), #000);
+    box-shadow:0 0 20px var(--card-color, #ff003c);
+    cursor:pointer; transition:transform .2s ease;
+  }
+  .card-avatar-wrap:hover { transform:scale(1.05); }
+  .card-avatar {
+    width:100%; height:100%; border-radius:50%;
+    object-fit:cover; display:block;
+    background:#222 center/cover no-repeat;
+  }
+  .card-avatar-overlay {
+    position:absolute; inset:0; border-radius:50%;
+    background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .2s ease; color:#fff; font-size:1.2rem;
+  }
+  .card-avatar-wrap:hover .card-avatar-overlay { opacity:1; }
+
+  .card-name-block { flex:1; min-width:0; }
+  .card-name { font-size:1.3rem; font-weight:900; color:#fff; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase; word-break:break-word; }
+  .card-meta { font-size:.72rem; color:#888; letter-spacing:1px; }
+  .card-tier-badge { font-size:.7rem; font-weight:900; padding:4px 10px; border-radius:6px; letter-spacing:1.5px; background:var(--card-color, #ff003c); color:#000; box-shadow:0 0 15px var(--card-color, #ff003c); flex-shrink:0; }
+
+  .card-ovr-row { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+  .card-ovr-block { text-align:center; }
+  .card-ovr { font-size:2.6rem; font-weight:900; line-height:1; color:var(--card-color, #ff003c); text-shadow:0 0 15px var(--card-color, #ff003c); letter-spacing:-2px; }
+  .card-pos { font-size:.7rem; font-weight:800; color:#fff; letter-spacing:2px; background:var(--card-color, #ff003c); padding:2px 10px; border-radius:4px; margin-top:4px; display:inline-block; }
+  .card-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding-top:12px; border-top:1px solid rgba(255,255,255,.08); flex:1; }
+  .card-stat { text-align:center; }
+  .card-stat-val { font-size:1.1rem; font-weight:900; color:var(--card-color, #ff003c); text-shadow:0 0 8px var(--card-color, #ff003c); }
+  .card-stat-lbl { font-size:.55rem; color:#666; letter-spacing:1.5px; margin-top:2px; text-transform:uppercase; }
+
+  /* ===== ПРОКАЧКА ===== */
+  .skill-row { background:rgba(0,0,0,.4); border:1px solid rgba(255,0,60,.12); border-radius:10px; padding:12px 14px; margin-bottom:8px; transition:all .2s ease; }
+  .skill-row:hover { border-color:var(--red); }
+  .skill-row-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .skill-row-name { font-size:.85rem; font-weight:700; color:#ddd; }
+  .skill-row-tier { font-size:.6rem; font-weight:900; padding:3px 8px; border-radius:5px; letter-spacing:1px; text-transform:uppercase; }
+  .tier-none    { background:#1a1a1a; color:#666; border:1px solid #333; }
+  .tier-bronze  { background:rgba(205,127,50,.15); color:#cd7f32; border:1px solid #cd7f32; }
+  .tier-silver  { background:rgba(224,224,224,.15); color:#e0e0e0; border:1px solid #e0e0e0; }
+  .tier-gold    { background:rgba(255,215,0,.15); color:#ffd700; border:1px solid #ffd700; }
+  .tier-diamond { background:rgba(0,255,247,.15); color:#00fff7; border:1px solid #00fff7; }
+  .skill-row-bar { height:5px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; margin-top:6px; }
+  .skill-row-fill { height:100%; transition:width .5s ease; border-radius:3px; }
+  .skill-row-fill.bronze  { background:linear-gradient(90deg, #cd7f32, #ffb870); }
+  .skill-row-fill.silver  { background:linear-gradient(90deg, #999, #f0f0f0); }
+  .skill-row-fill.gold    { background:linear-gradient(90deg, #d4af37, #ffe866); }
+  .skill-row-fill.diamond { background:linear-gradient(90deg, #00b8b0, #00fff7); box-shadow:0 0 10px #00fff7; }
+  .skill-row-progress { font-size:.7rem; color:#888; margin-top:4px; }
+
+  /* FAB */
+  .drills-fab { position:fixed; bottom:22px; right:22px; z-index:50; width:60px; height:60px; border-radius:50%; background:var(--red); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 0 25px rgba(255,0,60,.7); transition:transform .2s ease,box-shadow .2s ease; padding:0; }
+  .drills-fab:hover { transform:scale(1.08); box-shadow:0 0 40px rgba(255,0,60,1); }
+  .drills-fab svg { width:28px; height:28px; }
+
+  /* Panels */
+  .drills-panel { position:fixed; inset:0; background:rgba(0,0,0,.97); z-index:99; display:flex; flex-direction:column; animation:fadeIn .2s ease; }
+  .drills-header { padding:16px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; background:#080002; }
+  .drills-header h3 { color:var(--red); font-size:1rem; letter-spacing:2px; }
+  .drills-close { background:none; border:none; color:var(--red); font-size:1.6rem; cursor:pointer; width:auto; padding:0 6px; box-shadow:none; }
+  .drills-close:hover { background:none; color:#fff; }
+  .drills-body { flex:1; overflow-y:auto; padding:16px 18px; }
+
+  .drill-section-title { color:var(--red); font-size:.8rem; letter-spacing:2px; text-transform:uppercase; margin:20px 0 12px; padding-bottom:6px; border-bottom:1px solid var(--line); font-weight:800; }
+  .drill-section-title:first-child { margin-top:0; }
+  .drill-subtitle { color:#666; font-size:.7rem; letter-spacing:1px; text-transform:uppercase; margin:16px 0 8px; font-weight:600; }
+
+  .drill-card { background:rgba(255,0,60,.04); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer; transition:all .2s ease; }
+  .drill-card:hover { border-color:var(--red); background:rgba(255,0,60,.08); transform:translateX(4px); }
+  .drill-card-title { color:#fff; font-weight:700; font-size:.95rem; margin-bottom:4px; }
+  .drill-card-desc { color:#888; font-size:.78rem; line-height:1.4; }
+  .drill-card-badge { display:inline-block; font-size:.6rem; padding:2px 8px; border-radius:20px; margin-top:6px; text-transform:uppercase; letter-spacing:1px; font-weight:700; border:1px solid var(--red); color:var(--red); }
+
+  .drill-detail { padding:4px 0; }
+  .drill-detail h2 { color:var(--red); font-size:1.2rem; margin-bottom:6px; }
+  .drill-detail .meta { color:#666; font-size:.75rem; margin-bottom:16px; letter-spacing:1px; }
+  .drill-exercise { padding:12px 0; border-bottom:1px solid rgba(255,0,60,.1); }
+  .drill-exercise:last-child { border-bottom:none; }
+  .drill-exercise-title { color:var(--red-soft); font-weight:700; font-size:.9rem; margin-bottom:4px; }
+  .drill-exercise-desc { color:#aaa; font-size:.82rem; line-height:1.5; }
+  .drill-exercise-reps { color:#666; font-size:.72rem; margin-top:4px; font-style:italic; }
+
+  .back-btn { background:transparent; border:1px solid var(--red); color:var(--red); padding:10px 20px; font-size:.75rem; margin-bottom:16px; width:auto; box-shadow:none; }
+  .back-btn:hover { background:rgba(255,0,60,.1); }
+
+  /* COMBO */
+  .combo-card { background:rgba(255,0,60,.06); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer; transition:all .2s ease; }
+  .combo-card:hover { border-color:var(--red); background:rgba(255,0,60,.1); transform:translateX(4px); }
+  .combo-title { color:#fff; font-weight:800; font-size:.95rem; margin-bottom:4px; letter-spacing:1px; }
+  .combo-desc { color:#888; font-size:.78rem; line-height:1.4; }
+  .combo-steps { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+  .combo-step { font-size:.62rem; padding:3px 8px; border:1px solid var(--red); color:var(--red); border-radius:20px; letter-spacing:1px; font-weight:700; }
+
+  /* IQ GAME */
+  .iq-intro { color:#aaa; font-size:.85rem; line-height:1.5; margin-bottom:16px; padding:12px; background:rgba(255,0,60,.05); border-left:3px solid var(--red); border-radius:6px; }
+  .iq-stats { display:flex; gap:10px; margin-bottom:14px; }
+  .iq-stat { flex:1; background:rgba(0,0,0,.5); border:1px solid var(--line); border-radius:10px; padding:10px; text-align:center; }
+  .iq-stat .v { color:var(--red); font-weight:800; font-size:1.2rem; }
+  .iq-stat .l { color:#666; font-size:.6rem; text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+  .iq-situation { color:#aaa; font-size:.9rem; line-height:1.6; margin-bottom:18px; padding:16px; background:rgba(255,0,60,.06); border-radius:10px; border-left:3px solid var(--red); }
+  .iq-situation b { color:var(--red-soft); }
+  .iq-actions { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+  .iq-action { background:rgba(0,0,0,.6); border:1px solid var(--line); color:#ddd; padding:14px 16px; border-radius:10px; cursor:pointer; font-size:.88rem; text-align:left; transition:all .2s ease; width:100%; text-transform:none; letter-spacing:0; font-weight:600; box-shadow:none; line-height:1.4; }
+  .iq-action:hover:not(:disabled) { border-color:var(--red); background:rgba(255,0,60,.1); transform:translateX(4px); }
+  .iq-action.correct { border-color:#00ff88; background:rgba(0,255,136,.12); color:#00ff88; }
+  .iq-action.wrong { border-color:#ff003c; background:rgba(255,0,60,.15); color:#ff5c7c; }
+  .iq-feedback { padding:14px; border-radius:10px; margin-bottom:12px; font-size:.85rem; line-height:1.5; }
+  .iq-feedback.ok { background:rgba(0,255,136,.08); border-left:3px solid #00ff88; color:#9effc4; }
+  .iq-feedback.bad { background:rgba(255,0,60,.1); border-left:3px solid var(--red); color:#ffb0c0; }
+  .iq-feedback b { color:#fff; }
+
+  /* ===== ПЛАНИРОВЩИК ===== */
+  .plan-intro { color:#aaa; font-size:.85rem; line-height:1.5; margin-bottom:16px; padding:14px; background:rgba(255,0,60,.06); border-left:3px solid var(--red); border-radius:8px; }
+  .plan-intro b { color:var(--red-soft); }
+  .plan-day { background:rgba(0,0,0,.5); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; transition:all .2s ease; }
+  .plan-day.has-items { border-color:rgba(255,0,60,.5); background:rgba(255,0,60,.04); }
+  .plan-day.rest { opacity:0.75; border-style:dashed; }
+  .plan-day-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .plan-day-title { color:var(--red); font-weight:800; font-size:.95rem; letter-spacing:2px; }
+  .plan-day-badge { font-size:.6rem; padding:3px 8px; border-radius:20px; font-weight:700; text-transform:uppercase; letter-spacing:1px; border:1px solid var(--red); color:var(--red); }
+  .plan-day.rest .plan-day-badge { border-color:#444; color:#666; }
+  .plan-day.has-items .plan-day-badge { background:var(--red); color:#fff; }
+  .plan-cats { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .plan-cat { font-size:.72rem; padding:7px 12px; border-radius:20px; cursor:pointer; border:1px solid var(--line); color:#999; font-weight:600; transition:all .2s ease; user-select:none; background:rgba(0,0,0,.4); }
+  .plan-cat:active { transform:scale(.95); }
+  .plan-cat.selected { background:var(--red); color:#fff; border-color:var(--red); box-shadow:0 0 15px rgba(255,0,60,.6); }
+  .plan-items { display:flex; flex-direction:column; gap:6px; }
+  .plan-item { display:flex; justify-content:space-between; align-items:center; background:rgba(255,0,60,.08); border:1px solid rgba(255,0,60,.3); border-radius:8px; padding:8px 12px; font-size:.8rem; color:#ddd; }
+  .plan-item-remove { color:var(--red-soft); cursor:pointer; font-weight:900; font-size:1rem; padding:0 4px; }
+  .plan-item-remove:hover { color:var(--red); }
+  .plan-empty { color:#555; font-size:.78rem; font-style:italic; padding:6px 0; }
+  .plan-footer { position:sticky; bottom:0; background:#000; padding:16px 0 8px; border-top:1px solid var(--line); margin-top:8px; }
+
+  /* ===== СПРАВОЧНИК ===== */
+  .dict-search { margin-bottom:14px; }
+  .dict-item { background:rgba(0,0,0,.4); border:1px solid rgba(255,0,60,.15); border-radius:10px; padding:14px; margin-bottom:8px; transition:all .2s ease; }
+  .dict-item:hover { border-color:var(--red); background:rgba(255,0,60,.05); }
+  .dict-term { color:var(--red-soft); font-weight:800; font-size:.92rem; margin-bottom:6px; letter-spacing:.5px; }
+  .dict-def { color:#bbb; font-size:.82rem; line-height:1.55; }
+
+  @media (max-width:480px) {
+    h1 { font-size:1.9rem; }
+    .card { padding:16px; }
+    .grid { grid-template-columns:1fr 1fr; }
+    .grid .field:last-child:nth-child(odd) { grid-column:span 2; }
+    .intro-word { letter-spacing:4px; }
+    .card-ovr { font-size:2rem; }
+    .card-name { font-size:1.1rem; }
+    .card-avatar-wrap { width:60px; height:60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ИНТРО -->
+<div id="intro">
+  <div class="bullet-wrap">
+    <div class="bullet"></div>
+    <div class="bullet-flash"></div>
+    <div class="bullet-flash-2"></div>
+  </div>
+  <div class="intro-word intro-top">BASKET</div>
+  <div class="intro-word intro-bottom">TRAINING</div>
+</div>
+
+<div id="snow"></div>
+
+<div class="wrap">
+  <h1>BASKET TRAINING</h1>
+  <div class="sub">SOLO COACH</div>
+
+  <div id="regScreen" class="card">
+    <h2 style="color:var(--red);margin-bottom:18px;font-size:1.15rem;letter-spacing:1px;">ПРОФИЛЬ ИГРОКА</h2>
+    <div class="grid">
+      <div class="field"><label class="req">Ник</label><input id="f_name" placeholder="Nickname"></div>
+      <div class="field"><label class="req">Рост (см)</label><input id="f_height" type="number" inputmode="numeric" placeholder="190"></div>
+      <div class="field"><label class="req">Вес (кг)</label><input id="f_weight" type="number" inputmode="numeric" placeholder="85"></div>
+      <div class="field"><label>Позиция</label>
+        <select id="f_pos">
+          <option value="">— не указана —</option>
+          <option value="PG">PG — разыгрывающий</option>
+          <option value="SG">SG — атакующий</option>
+          <option value="SF">SF — лёгкий форвард</option>
+          <option value="PF">PF — мощный форвард</option>
+          <option value="C">C — центровой</option>
+        </select>
+      </div>
+      <div class="field"><label>Уровень</label>
+        <select id="f_level">
+          <option value="0">Новичок</option>
+          <option value="1">Любитель</option>
+          <option value="2">Продвинутый</option>
+          <option value="3">Про</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:.72rem;color:#666;margin-bottom:14px;">Все тренировки — соло. Аватарку загрузишь в профиле после регистрации.</p>
+    <button onclick="register()">ДАЛЕЕ — ПЛАН НЕДЕЛИ</button>
+  </div>
+
+  <div id="plannerScreen" class="hidden">
+    <div class="card">
+      <h2 style="color:var(--red);margin-bottom:12px;font-size:1.15rem;letter-spacing:1px;">СОСТАВЬ ПЛАН НЕДЕЛИ</h2>
+      <div class="plan-intro">Выбери, <b>что делать в каждый день</b>. Тапай категории — они добавятся в день. Можно несколько в один день или оставить пустым (отдых).</div>
+      <div id="plannerBody"></div>
+      <div class="plan-footer">
+        <button onclick="savePlan()">СОХРАНИТЬ ПЛАН</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dashScreen" class="hidden">
+    <div id="playerCard" class="player-card tier-bronze">
+      <div class="card-bg-photo" id="cardBgPhoto"></div>
+      <div class="card-bg-overlay"></div>
+      <div class="card-inner">
+        <div class="card-top">
+          <div class="card-avatar-wrap" onclick="document.getElementById('avatarInput').click()">
+            <img id="cardAvatar" class="card-avatar" src="" alt="">
+            <div class="card-avatar-overlay">✎</div>
+          </div>
+          <div class="card-name-block">
+            <div class="card-name" id="cardName">—</div>
+            <div class="card-meta" id="cardMeta">—</div>
+          </div>
+          <div class="card-tier-badge" id="cardTierBadge">БРОНЗА</div>
+        </div>
+        <input type="file" id="avatarInput" accept="image/*" class="hidden" onchange="handleAvatar(event)">
+        <div class="card-ovr-row">
+          <div class="card-ovr-block">
+            <div class="card-ovr" id="cardOvr">65</div>
+            <div class="card-pos" id="cardPos">PG</div>
+          </div>
+          <div class="card-stats">
+            <div class="card-stat"><div class="card-stat-val" id="cardStatFt">—</div><div class="card-stat-lbl">ШТРАФ</div></div>
+            <div class="card-stat"><div class="card-stat-val" id="cardStat3">—</div><div class="card-stat-lbl">ТРЁХА</div></div>
+            <div class="card-stat"><div class="card-stat-val" id="cardStatLay">—</div><div class="card-stat-lbl">ЛЭЙАП</div></div>
+          </div>
+        </div>
+        <div class="card-stats" style="grid-template-columns:repeat(4,1fr);margin-top:10px;padding-top:10px;">
+          <div class="card-stat"><div class="card-stat-val" id="cardStatStepp">—</div><div class="card-stat-lbl">СТЕПБЕК</div></div>
+          <div class="card-stat"><div class="card-stat-val" id="cardStatFade">—</div><div class="card-stat-lbl">ФЕЙДЭВЭЙ</div></div>
+          <div class="card-stat"><div class="card-stat-val" id="cardStatSpin">—</div><div class="card-stat-lbl">РАЗВОРОТ</div></div>
+          <div class="card-stat"><div class="card-stat-val" id="cardStatMid">—</div><div class="card-stat-lbl">СРЕДНИЙ</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h2 id="welcome" style="color:var(--red);font-size:1.3rem;"></h2>
+          <div id="posInfo" style="color:#777;font-size:.78rem;margin-top:4px;"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <div class="logout" onclick="openDict()">СПРАВОЧНИК</div>
+          <div class="logout" onclick="editPlan()">ИЗМЕНИТЬ ПЛАН</div>
+          <div class="logout" onclick="logout()">СМЕНИТЬ ПРОФИЛЬ</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--red);margin-bottom:14px;font-size:.95rem;letter-spacing:1px;">ПРОКАЧКА БРОСКОВ</h3>
+      <div id="skillsList"></div>
+    </div>
+
+    <div class="card coach" id="coachCard">
+      <h3>COACH</h3>
+      <div id="coachText"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--red);margin-bottom:14px;font-size:.95rem;letter-spacing:1px;">ТВОЙ ПЛАН НА НЕДЕЛЮ</h3>
+      <div class="day-tabs" id="dayTabs"></div>
+      <div id="taskList"></div>
+      <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+      <div style="font-size:.72rem;color:#777;text-align:right;" id="progText">0 / 0</div>
+    </div>
+  </div>
+</div>
+
+<button class="drills-fab hidden" id="drillsFab" onclick="openDrills()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+  </svg>
+</button>
+
+<div id="drillsPanel" class="drills-panel hidden">
+  <div class="drills-header">
+    <h3 id="drillsTitle">ТРЕНИРОВКИ</h3>
+    <button class="drills-close" onclick="closeDrills()">×</button>
+  </div>
+  <div class="drills-body" id="drillsBody"></div>
+</div>
+
+<div id="courtModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="modalTitle">Точка броска</h3>
+    <div class="hint" id="modalHint"></div>
+    <div id="courtSvg"></div>
+    <button class="close-btn" onclick="closeModal()">ЗАКРЫТЬ</button>
+  </div>
+</div>
+
+<div id="resultModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>РЕЗУЛЬТАТ ТРЕНИРОВКИ</h3>
+    <div class="result-info" id="resultInfo"></div>
+    <div class="result-input"><input id="resultDone" type="number" inputmode="numeric" placeholder="Сколько забил"></div>
+    <div class="result-info" id="resultPreview"></div>
+    <button onclick="saveResult()">СОХРАНИТЬ</button>
+    <button class="close-btn" onclick="cancelResult()">ОТМЕНА</button>
+  </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+let state = {
+  user: null,
+  plan: {},
+  tasks: {},
+  activeDay: 0,
+  avatar: null,
+  stats: {
+    ft:      { made:0, total:0 },
+    three:   { made:0, total:0 },
+    layup:   { made:0, total:0 },
+    stepp:   { made:0, total:0 },
+    fade:    { made:0, total:0 },
+    spin:    { made:0, total:0 },
+    mid:     { made:0, total:0 }
+  }
+};
+let currentResult = { key:null, statType:null, total:0 };
+let currentDrillView = 'list';
+let currentDrillId = null;
+let dictQuery = '';
+let editingPlan = false;
+const DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+const DAY_FULL = ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'];
+
+const TIER_RULES = {
+  bronze:  { min: 30, label: 'БРОНЗА',  css: 'bronze' },
+  silver:  { min: 60, label: 'СЕРЕБРО', css: 'silver' },
+  gold:    { min: 78, label: 'ЗОЛОТО',  css: 'gold' },
+  diamond: { min: 88, label: 'РАДУГА',  css: 'diamond' }
+};
+
+const STAT_NAMES = {
+  ft:'Штрафные', three:'Трёхи', layup:'Лэйапы',
+  stepp:'Степбек', fade:'Фейдэвэй', spin:'Разворот', mid:'Средний'
+};
+
+const CATEGORIES = [
+  { id:'shoot',    name:'Броски',        desc:'Все типы бросков' },
+  { id:'dribble',  name:'Ведение',       desc:'Соло-дриблинг' },
+  { id:'attack',   name:'Атака',         desc:'Проходы, завершение' },
+  { id:'defense',  name:'Защита',        desc:'Стойка, работа ног' },
+  { id:'jump',     name:'Прыжок',        desc:'Плиометрика' },
+  { id:'combo',    name:'Комбо',         desc:'Связки бросков' },
+  { id:'iq',       name:'IQ Game',       desc:'Игровые ситуации' }
+];
+
+let iq = { scenario:null, answered:false, correct:0, total:0, lastWasCorrect:false, lastReason:'' };
+
+// ===================== СНЕГ / ИНТРО =====================
+function initSnow() {
+  const box = document.getElementById('snow');
+  const count = window.innerWidth < 600 ? 20 : 35;
+  let html = '';
+  for (let i=0; i<count; i++) {
+    const size = Math.random()*2.5 + 1;
+    const left = Math.random()*100;
+    const dur = Math.random()*8 + 6;
+    const delay = Math.random()*10;
+    const drift = (Math.random()*80 - 40).toFixed(0);
+    html += `<div class="flake" style="width:${size}px;height:${size}px;left:${left}%;--drift:${drift}px;animation-duration:${dur}s;animation-delay:-${delay}s;opacity:${(Math.random()*0.5+0.3).toFixed(2)};"></div>`;
+  }
+  box.innerHTML = html;
+}
+function playIntro() {
+  const intro = document.getElementById('intro');
+  setTimeout(() => {
+    intro.classList.add('hide');
+    setTimeout(() => intro.style.display = 'none', 700);
+  }, 3200);
+}
+
+// ===================== ПРОЦЕНТЫ / ТИРЫ =====================
+function pct(made, total) { return total > 0 ? Math.round(made/total*100) : null; }
+function getShootStats() {
+  const s = state.stats;
+  return {
+    ft: pct(s.ft.made, s.ft.total),
+    three: pct(s.three.made, s.three.total),
+    lay: pct(s.layup.made, s.layup.total),
+    stepp: pct(s.stepp.made, s.stepp.total),
+    fade: pct(s.fade.made, s.fade.total),
+    spin: pct(s.spin.made, s.spin.total),
+    mid: pct(s.mid.made, s.mid.total)
+  };
+}
+function getTier(statKey) {
+  const st = state.stats[statKey];
+  if (!st || st.total === 0) return 'none';
+  const p = st.made / st.total * 100;
+  if (p >= TIER_RULES.diamond.min) return 'diamond';
+  if (p >= TIER_RULES.gold.min) return 'gold';
+  if (p >= TIER_RULES.silver.min) return 'silver';
+  if (p >= TIER_RULES.bronze.min) return 'bronze';
+  return 'none';
+}
+function getOvr() {
+  const stats = getShootStats();
+  const vals = Object.values(stats).filter(v => v !== null);
+  if (vals.length === 0) return 60;
+  const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
+  return Math.round(60 + avg * 0.39);
+}
+function getCardTier() {
+  const stats = getShootStats();
+  const vals = Object.values(stats).filter(v => v !== null);
+  if (vals.length === 0) return 'bronze';
+  const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
+  if (avg >= TIER_RULES.diamond.min) return 'diamond';
+  if (avg >= TIER_RULES.gold.min) return 'gold';
+  if (avg >= TIER_RULES.silver.min) return 'silver';
+  return 'bronze';
+}
+
+// ===================== АВАТАРКА =====================
+function handleAvatar(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Файл больше 2 МБ. Выбери поменьше.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    state.avatar = ev.target.result;
+    persist();
+    updateCard();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===================== КАРТОЧКА =====================
+function updateCard() {
+  const u = state.user;
+  if (!u) return;
+  const stats = getShootStats();
+  const ovr = getOvr();
+  const tier = getCardTier();
+
+  const card = document.getElementById('playerCard');
+  card.className = 'player-card tier-' + tier;
+
+  document.getElementById('cardName').textContent = u.name;
+  document.getElementById('cardMeta').textContent = `${u.height}см · ${u.weight}кг · ${['Новичок','Любитель','Продвинутый','Про'][u.level]}`;
+  document.getElementById('cardOvr').textContent = ovr;
+  document.getElementById('cardPos').textContent = u.pos || 'PLAYER';
+  document.getElementById('cardTierBadge').textContent = TIER_RULES[tier] ? TIER_RULES[tier].label : 'БРОНЗА';
+
+  const bgPhoto = document.getElementById('cardBgPhoto');
+  if (bgPhoto) {
+    if (state.avatar) {
+      bgPhoto.style.backgroundImage = `url(${state.avatar})`;
+      bgPhoto.style.opacity = '0.28';
+    } else {
+      bgPhoto.style.backgroundImage = 'none';
+      bgPhoto.style.opacity = '0';
+    }
+  }
+
+  const avatarImg = document.getElementById('cardAvatar');
+  if (state.avatar) {
+    avatarImg.src = state.avatar;
+    avatarImg.style.background = 'none';
+  } else {
+    avatarImg.style.background = `linear-gradient(135deg, var(--card-color, #ff003c), #000)`;
+    avatarImg.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="transparent"/><text x="50" y="65" font-family="Nunito,Arial,sans-serif" font-size="48" font-weight="900" fill="#fff" text-anchor="middle">${(u.name[0]||'?').toUpperCase()}</text></svg>`
+    );
+  }
+
+  const fmt = v => v === null ? '—' : v + '%';
+  document.getElementById('cardStatFt').textContent = fmt(stats.ft);
+  document.getElementById('cardStat3').textContent = fmt(stats.three);
+  document.getElementById('cardStatLay').textContent = fmt(stats.lay);
+  document.getElementById('cardStatStepp').textContent = fmt(stats.stepp);
+  document.getElementById('cardStatFade').textContent = fmt(stats.fade);
+  document.getElementById('cardStatSpin').textContent = fmt(stats.spin);
+  document.getElementById('cardStatMid').textContent = fmt(stats.mid);
+}
+
+// ===================== ПРОКАЧКА =====================
+function renderSkills() {
+  const list = document.getElementById('skillsList');
+  if (!list) return;
+  let html = '';
+  Object.keys(STAT_NAMES).forEach(key => {
+    const st = state.stats[key];
+    const tier = getTier(key);
+    const p = st.total > 0 ? Math.round(st.made/st.total*100) : 0;
+    let fillClass = '', fillPct = 0;
+    if (tier === 'bronze') { fillClass = 'bronze'; fillPct = Math.min(100, (p/TIER_RULES.bronze.min)*100); }
+    else if (tier === 'silver') { fillClass = 'silver'; fillPct = Math.min(100, (p/TIER_RULES.silver.min)*100); }
+    else if (tier === 'gold') { fillClass = 'gold'; fillPct = Math.min(100, (p/TIER_RULES.gold.min)*100); }
+    else if (tier === 'diamond') { fillClass = 'diamond'; fillPct = 100; }
+
+    html += `<div class="skill-row">
+      <div class="skill-row-header">
+        <div class="skill-row-name">${STAT_NAMES[key]}</div>
+        <div class="skill-row-tier tier-${tier}">${tier === 'none' ? '—' : TIER_RULES[tier].label}</div>
+      </div>
+      <div class="skill-row-bar">
+        <div class="skill-row-fill ${fillClass}" style="width:${fillPct}%"></div>
+      </div>
+      <div class="skill-row-progress">${st.total > 0 ? `${p}% · ${st.made}/${st.total}` : 'Ещё нет данных'}</div>
+    </div>`;
+  });
+  list.innerHTML = html;
+}
+
+// ===================== ПЛАНИРОВЩИК =====================
+function renderPlanner() {
+  const body = document.getElementById('plannerBody');
+  let html = '';
+  for (let d=0; d<7; d++) {
+    const items = state.plan[d] || [];
+    const isRest = items.length === 0;
+    html += `
+      <div class="plan-day ${items.length ? 'has-items' : 'rest'}">
+        <div class="plan-day-header">
+          <div class="plan-day-title">${DAY_FULL[d]}</div>
+          <div class="plan-day-badge">${isRest ? 'ОТДЫХ' : items.length + ' ТРЕНИР.'}</div>
+        </div>
+        <div class="plan-cats">
+          ${CATEGORIES.map(cat => `
+            <div class="plan-cat ${items.includes(cat.id) ? 'selected' : ''}"
+                 onclick="togglePlanCat(${d}, '${cat.id}')">${cat.name}</div>
+          `).join('')}
+        </div>
+        ${items.length ? `
+          <div class="plan-items">
+            ${items.map(catId => {
+              const cat = CATEGORIES.find(c => c.id === catId);
+              return `<div class="plan-item">
+                <span>${cat.name} — ${cat.desc}</span>
+                <span class="plan-item-remove" onclick="togglePlanCat(${d}, '${catId}')">×</span>
+              </div>`;
+            }).join('')}
+          </div>
+        ` : `<div class="plan-empty">— день отдыха —</div>`}
+      </div>
+    `;
+  }
+  body.innerHTML = html;
+}
+function togglePlanCat(day, catId) {
+  if (!state.plan[day]) state.plan[day] = [];
+  const idx = state.plan[day].indexOf(catId);
+  if (idx === -1) state.plan[day].push(catId);
+  else state.plan[day].splice(idx, 1);
+  renderPlanner();
+}
+function val(id){ return document.getElementById(id).value.trim(); }
+
+function register() {
+  const name = val('f_name');
+  const height = +val('f_height');
+  const weight = +val('f_weight');
+  if (!name) { alert('Укажи ник'); return; }
+  if (!height || height < 100 || height > 250) { alert('Укажи корректный рост (100-250 см)'); return; }
+  if (!weight || weight < 30 || weight > 200) { alert('Укажи корректный вес (30-200 кг)'); return; }
+
+  state.user = { name, height, weight, pos: val('f_pos') || null, level: val('f_level') };
+  state.plan = { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] };
+  state.tasks = {};
+  state.activeDay = 0;
+  state.avatar = null;
+  state.stats = {
+    ft:{made:0,total:0}, three:{made:0,total:0}, layup:{made:0,total:0},
+    stepp:{made:0,total:0}, fade:{made:0,total:0}, spin:{made:0,total:0}, mid:{made:0,total:0}
+  };
+  editingPlan = false;
+
+  document.getElementById('regScreen').classList.add('hidden');
+  document.getElementById('dashScreen').classList.add('hidden');
+  document.getElementById('plannerScreen').classList.remove('hidden');
+
+  renderPlanner();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function editPlan() {
+  editingPlan = true;
+  document.getElementById('dashScreen').classList.add('hidden');
+  document.getElementById('plannerScreen').classList.remove('hidden');
+  renderPlanner();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function savePlan() {
+  const total = Object.values(state.plan).reduce((a,b) => a + b.length, 0);
+  if (total === 0) {
+    if (!confirm('У тебя ни одного дня с тренировкой. Точно сохранить пустой план?')) return;
+  }
+  persist();
+  document.getElementById('plannerScreen').classList.add('hidden');
+  editingPlan = false;
+  showDash();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===================== ГЕНЕРАЦИЯ ЗАДАНИЙ =====================
+function buildDayTasks(day) {
+  const cats = state.plan[day] || [];
+  const tasks = [];
+  if (cats.length > 0) {
+    tasks.push({
+      type:'skill', title:'Разминка + суставная гимнастика',
+      desc:'10 минут динамической растяжки, бег на месте, вращения.',
+      court:null, statType:null
+    });
+  }
+  cats.forEach(cat => {
+    if (cat === 'shoot') {
+      tasks.push({ type:'shoot', title:'Штрафные: 30 бросков', desc:'Концентрация на дуге и запястье. Дыши перед каждым.', court:'ft', statType:'ft', totalShots:30 });
+      tasks.push({ type:'shoot', title:'Трёхи с 5 точек: 30 бросков', desc:'По 6 с каждой точки. Цель — 40%+.', court:'3pt5', statType:'three', totalShots:30 });
+      tasks.push({ type:'shoot', title:'Лэйапы: 30 бросков', desc:'Правой и левой. Мягкий отскок от щита.', court:'layup', statType:'layup', totalShots:30 });
+      tasks.push({ type:'shoot', title:'Степбек: 30 бросков', desc:'Уход в сторону → резкий шаг назад → бросок.', court:'mid5', statType:'stepp', totalShots:30 });
+      tasks.push({ type:'shoot', title:'Фейдэвэй: 30 бросков', desc:'Бросок с отклонением назад.', court:'mid5', statType:'fade', totalShots:30 });
+      tasks.push({ type:'shoot', title:'Разворот: 30 бросков', desc:'Спиной к кольцу → разворот через плечо → бросок.', court:'mid5', statType:'spin', totalShots:30 });
+      tasks.push({ type:'shoot', title:'Средние: 30 бросков', desc:'5 точек внутри дуги, по 6 с каждой.', court:'mid5', statType:'mid', totalShots:30 });
+    }
+    if (cat === 'dribble') {
+      tasks.push({ type:'skill', title:'Соло-дриблинг: 20 мин', desc:'Кроссоверы, между ног, за спиной, с изменением скорости.', court:null, statType:null });
+    }
+    if (cat === 'attack') {
+      tasks.push({ type:'skill', title:'Соло-атака: проходы', desc:'Тройная угроза, джаб-степ, проход с завершением. 10 с каждой стороны.', court:null, statType:null });
+    }
+    if (cat === 'defense') {
+      tasks.push({ type:'skill', title:'Соло-защита: стойка + ноги', desc:'Приставные шаги 5×20 сек, стойка 3×30 сек, спринты с изменением направления.', court:null, statType:null });
+    }
+    if (cat === 'jump') {
+      tasks.push({ type:'phys', title:'Прыжок: плиометрика', desc:'Приседы с прыжком 4×10, прыжки с коленями к груди 3×8, приседы с весом 4×8. Мягкое приземление.', court:null, statType:null });
+    }
+    if (cat === 'combo') {
+      tasks.push({ type:'skill', title:'Комбо: уход → степбек → бросок', desc:'10 влево, 10 вправо. Считай попадания, цель — 40%+.', court:null, statType:null });
+    }
+    if (cat === 'iq') {
+      tasks.push({ type:'skill', title:'IQ Game: 5 ситуаций', desc:'Открой IQ в панели тренировок и пройди 5 сценариев.', court:null, statType:null });
+    }
+  });
+  return tasks;
+}
+
+function persist() {
+  localStorage.setItem('nh_user', JSON.stringify(state.user));
+  localStorage.setItem('nh_plan', JSON.stringify(state.plan));
+  localStorage.setItem('nh_tasks', JSON.stringify(state.tasks));
+  localStorage.setItem('nh_stats', JSON.stringify(state.stats));
+  if (state.avatar) localStorage.setItem('nh_avatar', state.avatar);
+  else localStorage.removeItem('nh_avatar');
+}
+
+// ===================== ДАШБОРД =====================
+function showDash() {
+  document.getElementById('regScreen').classList.add('hidden');
+  document.getElementById('plannerScreen').classList.add('hidden');
+  document.getElementById('dashScreen').classList.remove('hidden');
+  document.getElementById('drillsFab').classList.remove('hidden');
+
+  const u = state.user;
+  const posNames = {PG:'Разыгрывающий',SG:'Атакующий',SF:'Лёгкий форвард',PF:'Мощный форвард',C:'Центровой'};
+
+  document.getElementById('welcome').textContent = u.name;
+  const posTxt = u.pos ? posNames[u.pos] : 'Позиция не указана';
+  document.getElementById('posInfo').textContent = `${posTxt} · ${u.height}см · ${u.weight}кг · ${['Новичок','Любитель','Продвинутый','Про'][u.level]}`;
+
+  updateCard();
+  renderSkills();
+
+  const stats = getShootStats();
+  const h = u.height/100;
+  const bmi = (u.weight / (h*h)).toFixed(1);
+  let advice = `<p>Все тренировки — соло. Нужны кольцо, стена и пространство.</p>`;
+  const weak = [];
+  Object.keys(STAT_NAMES).forEach(k => {
+    const v = stats[k === 'layup' ? 'lay' : k];
+    if (v !== null && v < 40) weak.push(STAT_NAMES[k]);
+  });
+  if (weak.length > 0) {
+    advice += `<p>Слабые зоны: <b>${weak.join(', ')}</b>. План делает акцент на них.</p>`;
+  } else if (Object.values(stats).some(v => v !== null)) {
+    advice += `<p>Хороший профиль. Цель — <b>РАДУГА (88%+)</b> по каждому броску.</p>`;
+  } else {
+    advice += `<p>Начни с бросков — вноси результаты, откроются уровни БРОНЗА → РАДУГА.</p>`;
+  }
+  if (bmi > 27) advice += `<p>BMI ${bmi} выше нормы — добавь кардио.</p>`;
+  if (bmi < 19) advice += `<p>BMI ${bmi} ниже нормы — больше белка и силовой.</p>`;
+  document.getElementById('coachText').innerHTML = advice;
+
+  state.week = [];
+  for (let d=0; d<7; d++) state.week.push(buildDayTasks(d));
+
+  renderDayTabs();
+  renderTasks();
+}
+
+function renderDayTabs() {
+  document.getElementById('dayTabs').innerHTML = DAYS.map((d,i) => {
+    const items = state.week[i] || [];
+    const isEmpty = items.length === 0;
+    return `<div class="day-tab ${i===state.activeDay?'active':''} ${isEmpty?'empty':''}" onclick="setDay(${i})">${d}${!isEmpty ? '<span class="dot"></span>' : ''}</div>`;
+  }).join('');
+}
+function setDay(i) { state.activeDay = i; renderDayTabs(); renderTasks(); }
+
+function renderTasks() {
+  const tasks = state.week[state.activeDay] || [];
+  let done = 0;
+  const html = tasks.map((t, i) => {
+    const key = `${state.activeDay}_${i}`;
+    const isDone = state.tasks[key];
+    if (isDone) done++;
+    const tagText = t.type==='shoot'?'БРОСОК':t.type==='phys'?'ФИЗУХА':'СКИЛЛ';
+    let extra = '';
+    if (t.court) extra += `<div style="margin-top:8px;"><button onclick="event.stopPropagation();showCourt('${t.court}','${t.title.replace(/'/g,'')}')" style="padding:7px 12px;font-size:.7rem;width:auto;">ПОКАЗАТЬ ТОЧКУ</button></div>`;
+    let finish = '';
+    if (t.statType) finish += `<div style="margin-top:8px;"><button onclick="event.stopPropagation();openResult('${key}','${t.statType}',${t.totalShots},'${t.title.replace(/'/g,'')}')" style="padding:7px 12px;font-size:.7rem;width:auto;background:#333;box-shadow:none;">ЗАКОНЧИЛ</button></div>`;
+    return `<div class="task ${isDone?'done':''}">
+        <div class="check" onclick="toggleTask('${key}')">${isDone?'✓':''}</div>
+        <div style="flex:1;">
+          <div class="task-title">${t.title}</div>
+          <div class="task-desc">${t.desc}</div>
+          <span class="task-tag">${tagText}</span>
+          ${extra}${finish}
+        </div>
+      </div>`;
+  }).join('');
+  document.getElementById('taskList').innerHTML = tasks.length === 0
+    ? `<div style="text-align:center;padding:30px 10px;color:#666;font-size:.85rem;">Сегодня отдых. Выбери другой день или измени план.</div>`
+    : html;
+  const p = tasks.length ? Math.round(done/tasks.length*100) : 0;
+  document.getElementById('progFill').style.width = p+'%';
+  document.getElementById('progText').textContent = `${done} / ${tasks.length} (${p}%)`;
+}
+function toggleTask(key) { state.tasks[key] = !state.tasks[key]; persist(); renderTasks(); }
+
+// ===================== КОРТ =====================
+function buildCourt(type) {
+  const M = 20;
+  const W = 15 * M;
+  const H = 14 * M;
+  const pad = 24;
+  const totalW = W + pad*2;
+  const totalH = H + pad*2;
+  const cx = pad + W/2;
+  const topY = pad;
+  const rimY = topY + 1.575 * M;
+  const threeR = 6.75 * M;
+  const cornerOff = 0.9 * M;
+  const cornerX1 = pad + cornerOff;
+  const cornerX2 = pad + W - cornerOff;
+  const dx = W/2 - cornerOff;
+  const cornerY = rimY + Math.sqrt(threeR*threeR - dx*dx);
+  const ftY = topY + 5.8 * M;
+  const ftR = 1.8 * M;
+  const paintW = 4.9 * M;
+  const paintX1 = cx - paintW/2;
+  const paintX2 = cx + paintW/2;
+
+  return `<svg viewBox="0 0 ${totalW} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="background:#000;">
+    <defs>
+      <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff003c" stop-opacity=".9"/><stop offset="100%" stop-color="#ff003c" stop-opacity="0"/></radialGradient>
+      <filter id="blur"><feGaussianBlur stdDeviation="4"/></filter>
+    </defs>
+    <rect x="${pad}" y="${pad}" width="${W}" height="${H}" fill="#050002" stroke="#ff003c" stroke-width="2" opacity="0.9"/>
+    <line x1="${cx - 0.9*M}" y1="${topY}" x2="${cx + 0.9*M}" y2="${topY}" stroke="#ff003c" stroke-width="3"/>
+    <line x1="${cx}" y1="${topY}" x2="${cx}" y2="${rimY - 0.225*M}" stroke="#ff003c" stroke-width="1.5" opacity="0.6"/>
+    <circle cx="${cx}" cy="${rimY}" r="${0.225*M}" fill="none" stroke="#ff003c" stroke-width="2"/>
+    <rect x="${paintX1}" y="${topY}" width="${paintW}" height="${ftY - topY}" fill="none" stroke="#ff003c" stroke-width="1.5" opacity="0.5"/>
+    <circle cx="${cx}" cy="${ftY}" r="${ftR}" fill="none" stroke="#ff003c" stroke-width="1.5" opacity="0.5"/>
+    <line x1="${cornerX1}" y1="${topY}" x2="${cornerX1}" y2="${cornerY}" stroke="#ff003c" stroke-width="2" opacity="0.8"/>
+    <line x1="${cornerX2}" y1="${topY}" x2="${cornerX2}" y2="${cornerY}" stroke="#ff003c" stroke-width="2" opacity="0.8"/>
+    <path d="M ${cornerX1} ${cornerY} A ${threeR} ${threeR} 0 0 0 ${cornerX2} ${cornerY}" fill="none" stroke="#ff003c" stroke-width="2.5" opacity="0.9"/>
+    <text x="${totalW/2}" y="${totalH - 6}" fill="#555" font-size="9" text-anchor="middle">ПОЛОВИНА КОРТА (FIBA)</text>
+    ${markersFor(type, {pad, cx, topY, rimY, ftY, ftR, paintX1, paintX2, threeR, cornerX1, cornerX2, cornerY, M})}
+  </svg>`;
+}
+function markersFor(type, c) {
+  const pts = [];
+  const { pad, cx, topY, rimY, ftY, paintX1, paintX2, threeR, cornerX1, cornerX2, cornerY, M } = c;
+  if (type === 'ft') pts.push({x: cx, y: ftY, label:'1'});
+  else if (type === '3pt5') {
+    pts.push({x: cornerX1 + 2, y: cornerY - 12, label:'1'});
+    pts.push({x: cornerX2 - 2, y: cornerY - 12, label:'2'});
+    const ang = Math.PI/4;
+    pts.push({x: cx - threeR*Math.sin(ang), y: rimY + threeR*Math.cos(ang), label:'3'});
+    pts.push({x: cx + threeR*Math.sin(ang), y: rimY + threeR*Math.cos(ang), label:'4'});
+    pts.push({x: cx, y: rimY + threeR, label:'5'});
+  } else if (type === 'mid5') {
+    pts.push({x: paintX1 - 0.7*M, y: ftY - 0.8*M, label:'1'});
+    pts.push({x: paintX2 + 0.7*M, y: ftY - 0.8*M, label:'2'});
+    pts.push({x: paintX1 - 0.25*M, y: ftY, label:'3'});
+    pts.push({x: paintX2 + 0.25*M, y: ftY, label:'4'});
+    pts.push({x: cx, y: ftY - 0.7*M, label:'5'});
+  } else if (type === 'layup') {
+    pts.push({x: cx - 0.75*M, y: rimY + 0.55*M, label:'L'});
+    pts.push({x: cx + 0.75*M, y: rimY + 0.55*M, label:'R'});
+  }
+  return pts.map(p => `
+    <circle cx="${p.x}" cy="${p.y}" r="16" fill="url(#glow)" opacity=".4" filter="url(#blur)"/>
+    <circle cx="${p.x}" cy="${p.y}" r="11" fill="none" stroke="#ff003c" stroke-width="2.5" class="pulse"/>
+    <circle cx="${p.x}" cy="${p.y}" r="3" fill="#ff003c"/>
+    <text x="${p.x}" y="${p.y-16}" fill="#ff4d6d" font-size="10" font-weight="bold" text-anchor="middle">${p.label}</text>
+  `).join('');
+}
+function showCourt(type, title) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalHint').textContent = courtHint(type);
+  document.getElementById('courtSvg').innerHTML = buildCourt(type);
+  document.getElementById('courtModal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('courtModal').classList.add('hidden'); }
+function courtHint(type) {
+  const hints = {
+    ft: 'Линия штрафного (5.80 м от лицевой). Пауза, вдох, на выдохе — бросок.',
+    '3pt5': '5 точек на линии трёхи (6.75 м от кольца). По 6 бросков с каждой.',
+    mid5: '5 точек внутри дуги: усики, локти, центр штрафной.',
+    layup: 'Лэйапы с обеих сторон. Мягкий отскок от щита.'
+  };
+  return hints[type] || '';
+}
+
+// ===================== РЕЗУЛЬТАТ =====================
+function openResult(key, statType, total, title) {
+  currentResult = { key, statType, total };
+  document.getElementById('resultInfo').innerHTML = `<b>${title}</b><br>Бросков по программе: ${total}. Сколько забил?`;
+  document.getElementById('resultDone').value = '';
+  document.getElementById('resultPreview').textContent = '';
+  document.getElementById('resultModal').classList.remove('hidden');
+  document.getElementById('resultDone').oninput = () => {
+    const d = +document.getElementById('resultDone').value || 0;
+    if (d >= 0 && d <= total) {
+      const p = Math.round(d/total*100);
+      let tierNote = '';
+      if (p >= TIER_RULES.diamond.min) tierNote = ' → РАДУГА';
+      else if (p >= TIER_RULES.gold.min) tierNote = ' → ЗОЛОТО';
+      else if (p >= TIER_RULES.silver.min) tierNote = ' → СЕРЕБРО';
+      else if (p >= TIER_RULES.bronze.min) tierNote = ' → БРОНЗА';
+      document.getElementById('resultPreview').innerHTML = `Процент: <b>${p}%</b> (${d}/${total})${tierNote}`;
+    } else document.getElementById('resultPreview').textContent = '';
+  };
+}
+function cancelResult() { document.getElementById('resultModal').classList.add('hidden'); currentResult = { key:null, statType:null, total:0 }; }
+function saveResult() {
+  const d = +document.getElementById('resultDone').value || 0;
+  const t = currentResult.total;
+  if (d < 0 || d > t) { alert(`Введи число от 0 до ${t}`); return; }
+  state.stats[currentResult.statType].made += d;
+  state.stats[currentResult.statType].total += t;
+  state.tasks[currentResult.key] = true;
+  persist();
+  document.getElementById('resultModal').classList.add('hidden');
+  currentResult = { key:null, statType:null, total:0 };
+  showDash();
+}
+
+// ===================== КОМБО =====================
+const COMBOS = [
+  { id:'combo-1', title:'РИТМ: УСКОРЕНИЕ → СТОП → БРОСОК', desc:'Соло-связка: дриблинг → ускорение → джамп-стоп → бросок.', steps:['Дриблинг','Ускорение','Стоп прыжком','Бросок'], detail:[
+    { t:'Старт', d:'7-8 метров от кольца, веди мяч в среднем темпе.' },
+    { t:'Ускорение', d:'Резко вперёд — 2 удара, первый шаг длинный.' },
+    { t:'Стоп', d:'Джамп-стоп: оба стопа одновременно, колени согнуты.' },
+    { t:'Бросок', d:'Сразу из стойки — бросок в прыжке.' },
+    { t:'Повтор', d:'10 с 7 м, 10 с 8 м, 10 с трёхи. Больше 3 промахов — шаг назад.' }
+  ]},
+  { id:'combo-2', title:'УХОД → СТЕПБЕК → БРОСОК', desc:'Создание пространства: кроссовер → уход → степбек → бросок.', steps:['Дриблинг','Уход','Степбек','Бросок'], detail:[
+    { t:'Старт', d:'6-7 м от кольца, лицом к кольцу.' },
+    { t:'Уход', d:'Кроссовер в сторону, низкое ведение, взрывной шаг.' },
+    { t:'Степбек', d:'Резко оттолкнись передней ногой, отпрыгни назад. Оба стопа одновременно.' },
+    { t:'Бросок', d:'Из степа сразу бросок. Стопы на ширине плеч.' },
+    { t:'Повтор', d:'10 влево, 10 вправо. Цель — 40%+.' }
+  ]},
+  { id:'combo-3', title:'ДЖАБ → УХОД → БРОСОК', desc:'С тройной угрозы: джаб → уход → бросок.', steps:['Тройная угроза','Джаб-степ','Уход','Бросок'], detail:[
+    { t:'Тройная угроза', d:'6-7 м, колени согнуты, мяч у бедра.' },
+    { t:'Джаб', d:'Короткий резкий шаг передней ногой вперёд-в сторону.' },
+    { t:'Уход', d:'Резко в противоположную сторону, низкое ведение.' },
+    { t:'Бросок', d:'1-2 удара — остановка или сразу бросок.' },
+    { t:'Повтор', d:'10 влево / 10 вправо. Цель — 40%+.' }
+  ]},
+  { id:'combo-4', title:'РАЗВОРОТ → БРОСОК', desc:'Спиной к кольцу → разворот через плечо → бросок.', steps:['Спина','Разворот','Бросок'], detail:[
+    { t:'Старт', d:'6-7 м, спиной к кольцу, мяч у груди.' },
+    { t:'Разворот', d:'Через левое или правое плечо — резко, на опорной ноге.' },
+    { t:'Бросок', d:'Сразу после разворота — бросок в прыжке.' },
+    { t:'Повтор', d:'10 через левое плечо, 10 через правое. Цель — 40%+.' }
+  ]},
+  { id:'combo-5', title:'ФЕЙДЭВЭЙ С РАЗВОРОТА', desc:'Спиной к кольцу → разворот → бросок с отклонением.', steps:['Спина','Разворот','Фейдэвэй'], detail:[
+    { t:'Старт', d:'6-7 м, спиной к кольцу.' },
+    { t:'Разворот', d:'Через плечо — резко.' },
+    { t:'Фейдэвэй', d:'Прыжок назад и в сторону, бросок через руку.' },
+    { t:'Повтор', d:'10 влево, 10 вправо. Цель — 35%+.' }
+  ]}
+];
+
+// ===================== DRILLS =====================
+const DRILLS = [
+  { id:'defense', level:'normal', title:'ЗАЩИТА (СОЛО)', desc:'Стойка, работа ног, спринты, изменения направления', badge:'ОБЫЧНЫЙ', exercises:[
+    { title:'Стойка защитника', desc:'Ноги шире плеч, колени согнуты. Руки разведены, одна вверх, вторая в сторону.', reps:'3×30 секунд' },
+    { title:'Приставные шаги', desc:'Двигайся влево-вправо, не скрещивая ноги. Корпус вертикально.', reps:'4×20 секунд' },
+    { title:'Спринт-стоп-спринт', desc:'Ускорение 5 м → резкая остановка → ускорение обратно.', reps:'8 повторов' },
+    { title:'Защитные слайды с конусами', desc:'Расставь 4 конуса, двигайся между ними в защитной стойке.', reps:'3 круга' },
+    { title:'Боковые выпады с ускорением', desc:'Выпад в сторону → резко встать → ускорение 3 м.', reps:'10 в каждую сторону' },
+    { title:'Реакция на сигнал', desc:'Стойка, по хлопку — рывок в сторону.', reps:'15 повторов' }
+  ]},
+  { id:'attack', level:'normal', title:'АТАКА (СОЛО)', desc:'Тройная угроза, джаб-степ, проходы, завершение', badge:'ОБЫЧНЫЙ', exercises:[
+    { title:'Тройная угроза', desc:'Стойка с мячом у бедра, готов бросить/пасовать/идти в проход.', reps:'20 повторов' },
+    { title:'Джаб-степ', desc:'Короткий шаг передней ногой, не отрывая опорную.', reps:'3×10 в каждую сторону' },
+    { title:'1 удар — бросок', desc:'С крыла, один удар, сразу бросок.', reps:'20 с левого, 20 с правого' },
+    { title:'Проход с завершением', desc:'Первый шаг длинный, второй короткий. Обе руки.', reps:'10 правой, 10 левой' },
+    { title:'Евростеп', desc:'Проход, один шаг в сторону, второй — к кольцу. Мягкое завершение.', reps:'15 в каждую сторону' },
+    { title:'Флоатер', desc:'Мягкий бросок через защитника с близкой дистанции (2-3 м).', reps:'20 бросков' }
+  ]},
+  { id:'shoot-normal', level:'normal', title:'БРОСКИ (СОЛО)', desc:'Все типы: штрафные, трёхи, степбек, фейдэвэй, разворот', badge:'ОБЫЧНЫЙ', exercises:[
+    { title:'Форма-бросок', desc:'1.5-2 м сбоку, одной рукой. Локоть под мячом, проводка до конца.', reps:'50 с каждой стороны' },
+    { title:'Проверка техники', desc:'Равновесие, глаза, локоть, проводка. Проверяй каждый бросок.', reps:'30 с 3 м' },
+    { title:'Штрафные', desc:'Одинаковая рутина. Считай серии подряд.', reps:'50' },
+    { title:'Трёхи с прогрессией', desc:'С 4.5 м. Когда 7/10 — отойди на 0.5 м.', reps:'До линии трёхи' },
+    { title:'Степбек', desc:'Уход в сторону → шаг назад → бросок.', reps:'30 бросков' },
+    { title:'Фейдэвэй', desc:'Бросок с отклонением. Прыжок назад + бросок.', reps:'30 бросков' },
+    { title:'Разворот', desc:'Спиной → разворот через плечо → бросок.', reps:'15 влево, 15 вправо' }
+  ]},
+  { id:'jump', level:'normal', title:'ПРЫЖОК (СОЛО)', desc:'Взрывная сила, плиометрика', badge:'ОБЫЧНЫЙ', exercises:[
+    { title:'Приседы с прыжком', desc:'Присед до параллели → взрывной прыжок → мягкое приземление.', reps:'4×10' },
+    { title:'Прыжки с коленями к груди', desc:'Прыжок вверх, колени к груди.', reps:'3×8' },
+    { title:'Прыжки с вытянутыми руками', desc:'Прыжок с вытянутыми вверх руками (имитация подбора).', reps:'3×8' },
+    { title:'Прыжки на одной ноге по кресту', desc:'Вперёд, в сторону, назад, в сторону.', reps:'3×6 на каждую' },
+    { title:'Касания стены', desc:'Спринт между стенами с касанием.', reps:'4×20 секунд' },
+    { title:'Приседания с весом', desc:'Глубина — бёдра параллельны.', reps:'4×8' }
+  ]},
+  { id:'dribble-normal', level:'normal', title:'ВЕДЕНИЕ (СОЛО)', desc:'Контроль, кроссоверы, скорость', badge:'ОБЫЧНЫЙ', exercises:[
+    { title:'Ведение на месте', desc:'Обе руки, по 2 минуты, взгляд вперёд.', reps:'4 минуты' },
+    { title:'Кроссовер', desc:'Перед собой, низко, резко. Начни медленно.', reps:'3×30 секунд' },
+    { title:'Между ног', desc:'Перевод под ногой. Согни колени.', reps:'3×30 секунд' },
+    { title:'За спиной', desc:'Перевод за спиной. Начни медленно.', reps:'3×20 секунд' },
+    { title:'Смена направления', desc:'По сигналу — резкая смена, ускорение после.', reps:'10 в каждую сторону' },
+    { title:'Дриблинг с конусами', desc:'Расставь конусы, обводи их на скорости.', reps:'3 круга' }
+  ]},
+  { id:'shoot-beginner', level:'beginner', title:'БРОСКИ (НОВИЧОК)', desc:'С нуля: постановка руки, близкая дистанция', badge:'НОВИЧОК', exercises:[
+    { title:'Подбрасывание мяча', desc:'Подбрось на 2-3 м и поймай.', reps:'20 раз' },
+    { title:'Бросок в стену', desc:'2-3 м от стены, цель на высоте кольца.', reps:'30 бросков' },
+    { title:'Имитация броска', desc:'Полный бросок без мяча: колени, вынос, разгибание, проводка.', reps:'20 повторов' },
+    { title:'Бросок с 1.5 м сбоку', desc:'Одной рукой с отскоком от щита.', reps:'20 с каждой стороны' },
+    { title:'Бросок с 2 м прямо', desc:'Без отскока, следи за проводкой.', reps:'20 бросков' },
+    { title:'Штрафные с близкой', desc:'Двумя руками сверху. Цель — 5 подряд.', reps:'30 бросков' }
+  ]},
+  { id:'dribble-beginner', level:'beginner', title:'ВЕДЕНИЕ (НОВИЧОК)', desc:'С нуля: контроль, обе руки', badge:'НОВИЧОК', exercises:[
+    { title:'Стойка и хват', desc:'Ноги на ширине плеч, мяч у груди, пальцы широко.', reps:'30 секунд' },
+    { title:'Ведение сильной рукой', desc:'Бей подушечками, взгляд вперёд.', reps:'2 минуты' },
+    { title:'Ведение слабой рукой', desc:'Каждый день по 2 минуты.', reps:'2 минуты' },
+    { title:'Попеременное ведение', desc:'Правая-левая-правая-левая.', reps:'2 минуты' },
+    { title:'Вокруг себя', desc:'Обводи мяч вокруг тела, меняй направление.', reps:'1 минута в каждую сторону' },
+    { title:'Ведение шагом', desc:'10 метров туда-обратно, другой рукой.', reps:'5 кругов' }
+  ]}
+];
+
+// ===================== IQ =====================
+const IQ_SCENARIOS = [
+  { title:'ПИК-Н-РОЛЛ', situation:'Ты с мячом в центре, на 3-очковой. Партнёр ставит заслон слева. Защитник под заслоном — НЕ выходит на тебя.', actions:[
+    { text:'Бросать трёху сразу', correct:false, reason:'Защитник под заслоном — но дистанция трёхи, ты не в ритме. Плохой выбор.' },
+    { text:'Атаковать кольцо — проход в открытую краску', correct:true, reason:'Защитник под заслоном = нет сопротивления на входе. Проходи и завершай.' },
+    { text:'Пас партнёру, который ставил заслон', correct:false, reason:'Партнёра держит второй защитник. Перехват.' },
+    { text:'Ждать, пока защита перестроится', correct:false, reason:'Окно короткое. Защитник выйдет и закроет.' }
+  ]},
+  { title:'2 В 1 В ОТРЫВЕ', situation:'Ты с мячом, партнёр справа. Один защитник между вами.', actions:[
+    { text:'Бросать сразу', correct:false, reason:'На ходу, позиция неудобная. Низкий %.' },
+    { text:'Пас через защитника', correct:false, reason:'Защитник между вами — перехват.' },
+    { text:'Атаковать защитника напрямую', correct:true, reason:'2 в 1: защитник реагирует, ты обыгрываешь или отдаёшь партнёру.' },
+    { text:'Остановиться и ждать', correct:false, reason:'Теряешь численное преимущество.' }
+  ]},
+  { title:'ПОДБОР ПОСЛЕ БРОСКА', situation:'Соперник бросает из-под кольца. Ты — ближайший защитник. Бросок в дужку.', actions:[
+    { text:'Прыгнуть на блок', correct:false, reason:'Бросок в воздухе. Прыжок = не в позиции на подборе.' },
+    { text:'Отступить и занять позицию на подборе', correct:true, reason:'Шаг к кольцу, перекрой путь к мячу. Позиция на подборе важнее блока.' },
+    { text:'Побежать в отрыв', correct:false, reason:'Не контролируешь мяч — соперник добьёт.' },
+    { text:'Стоять на месте', correct:false, reason:'Потеряешь мяч.' }
+  ]},
+  { title:'ТРОЙНАЯ УГРОЗА', situation:'Мяч на правом крыле, на трёхе. Защитник слишком близко. В краске свободен партнёр.', actions:[
+    { text:'Джаб-степ и бросок', correct:false, reason:'Защитник близко — заблокирует. Джаб не даст пространства.' },
+    { text:'Проход влево (от защитника)', correct:true, reason:'Уход влево открывает путь. Атакуй краску или отдавай партнёру.' },
+    { text:'Пас партнёру в краску', correct:false, reason:'Партнёра держит защитник. Перехват.' },
+    { text:'Отступить и бросать', correct:false, reason:'Потеря ритма. Плохой бросок.' }
+  ]},
+  { title:'ШТРАФНАЯ — ПОДБОР', situation:'Партнёр бросает штрафной. Ты на подборе сбоку. Защитник между тобой и кольцом.', actions:[
+    { text:'Прыгнуть за отскоком', correct:false, reason:'Защитник займёт позицию. Не прыгай до отскока.' },
+    { text:'Атаковать позицию защитника', correct:true, reason:'Поставь ногу перед защитником, не дай ему войти в краску.' },
+    { text:'Стоять на месте', correct:false, reason:'Защитник подберёт.' },
+    { text:'Бежать к своему кольцу', correct:false, reason:'Ты на подборе — оставайся до отскока.' }
+  ]},
+  { title:'ИЗ-ПОД КОЛЬЦА', situation:'Ты в краске под кольцом, тебя атакует центровой. В углу открыт партнёр. У тебя открыт бросок с 3 м.', actions:[
+    { text:'Бросать с 3 м', correct:true, reason:'Близко к кольцу, защитник не в позиции. 50%+ — правильный выбор.' },
+    { text:'Пас в угол', correct:false, reason:'Ты ближе к кольцу. Отдавать на трёху — хуже по ожидаемым очкам.' },
+    { text:'Ждать двойной', correct:false, reason:'Второй защитник идёт — теряешь бросок.' },
+    { text:'Идти в проход', correct:false, reason:'Бросок с 3 м — чище.' }
+  ]},
+  { title:'ПЕРЕХВАТ И ОТРЫВ', situation:'Перехватил мяч на своей половине. Партнёр слева, два защитника сзади, один впереди.', actions:[
+    { text:'Бросать сразу', correct:false, reason:'Не в позиции броска, на ходу.' },
+    { text:'Атаковать защитника', correct:true, reason:'Один защитник впереди — обыгрываешь или фол. Партнёр отвлекает второго.' },
+    { text:'Пас партнёру', correct:false, reason:'У партнёра двое защитников. Риск перехвата.' },
+    { text:'Остановиться', correct:false, reason:'Упускаешь 2 в 1.' }
+  ]},
+  { title:'МИСС-МАТЧ', situation:'Защитник поменялся на заслоне — тебя держит высокий. Центровой на низком.', actions:[
+    { text:'Атаковать своего высокого', correct:true, reason:'Ты быстрее. Проходи его, атакуй краску.' },
+    { text:'Пас центровому', correct:false, reason:'Центрового держит маленький — перехват.' },
+    { text:'Бросать трёху', correct:false, reason:'Защитник рядом, бросок не чистый.' },
+    { text:'Вернуть мяч', correct:false, reason:'Теряешь преимущество. Мисс-матч — золото.' }
+  ]}
+];
+
+// ===================== СПРАВОЧНИК =====================
+const DICTIONARY = [
+  { term:'Штрафной бросок', def:'Бросок с линии штрафного (5.80 м от кольца), выполняется без сопротивления после фола.' },
+  { term:'Трёхочковый', def:'Бросок из-за дуги (6.75 м от кольца). При попадании — 3 очка.' },
+  { term:'Лэйап', def:'Бросок из-под кольца после двух шагов. Мяч обычно отскакивает от щита.' },
+  { term:'Степбек', def:'Резкий шаг назад после ухода в сторону — создаёшь пространство для броска.' },
+  { term:'Фейдэвэй', def:'Бросок с отклонением назад. Прыжок назад + бросок через руку — защитнику сложно заблокировать.' },
+  { term:'Разворот', def:'Приём спиной к кольцу: резкий поворот через плечо на опорной ноге, затем бросок.' },
+  { term:'Средний бросок', def:'Бросок с дистанции между краской и трёхочковой (3-5 м от кольца).' },
+  { term:'Джамп-стоп', def:'Остановка прыжком на два стопа одновременно после ведения. Позволяет сразу бросить или отдать пас.' },
+  { term:'Тройная угроза', def:'Стойка с мячом, из которой можно бросить, отдать пас или пойти в проход.' },
+  { term:'Джаб-степ', def:'Короткий резкий шаг передней ногой (не отрывая опорную) — проверка реакции защитника.' },
+  { term:'Кроссовер', def:'Перевод мяча с руки на руку перед собой. Основа обыгрыша.' },
+  { term:'Перевод между ног', def:'Перевод мяча под ногой — низкий, защищённый от перехвата.' },
+  { term:'Перевод за спиной', def:'Перевод мяча за спиной — для смены направления и ухода от защитника.' },
+  { term:'Евростеп', def:'Проход с одним шагом в сторону и вторым — к кольцу. Обходит защитника, который стоит под кольцом.' },
+  { term:'Флоатер', def:'Мягкий бросок через защитника с 2-3 м. Высокая дуга, чтобы перекинуть защитника.' },
+  { term:'Пик-н-ролл', def:'Комбинация: партнёр ставит заслон, ты пользуешься и либо бросаешь, либо отдаёшь пас партнёру.' },
+  { term:'Мисс-матч', def:'Ситуация, когда тебя держит неудобный защитник (например, высокий против быстрого) — используй преимущество.' },
+  { term:'Подбор', def:'Захват мяча после промаха. Может быть в нападении или защите.' },
+  { term:'Блок-шот', def:'Защитник выбивает мяч в момент броска. Не путать с прыжком на блок (это попытка).' },
+  { term:'Отрыв', def:'Быстрая атака после перехвата или подбора, пока соперник не вернулся в защиту.' },
+  { term:'Помощь в защите', def:'Защитник оставляет своего игрока, чтобы помочь партнёру против угрозы.' },
+  { term:'Фол', def:'Нарушение правил. Бывает личный, технический, неспортивный. За фол — штрафные или владение.' },
+  { term:'Пробежка', def:'Нарушение: больше двух шагов с мячом без ведения или броска.' },
+  { term:'Двойное ведение', def:'Нарушение: взял мяч в руки, потом снова начал ведение.' },
+  { term:'Зона', def:'Тактика защиты, когда каждый защищает определённую зону, а не игрока.' },
+  { term:'Персональная защита', def:'Каждый защитник держит своего игрока по всему полю.' },
+  { term:'BMI', def:'Индекс массы тела. Показывает соотношение роста и веса. Норма у спортсменов 20-25.' },
+  { term:'Плиометрика', def:'Взрывные прыжковые упражнения для развития прыжка: приседы с прыжком, прыжки на ящик.' },
+  { term:'ОФП', def:'Общая физическая подготовка: сила, выносливость, скорость, гибкость.' },
+  { term:'OVR', def:'Общий рейтинг игрока (60-99). Растёт с процентом попаданий по всем типам бросков.' },
+  { term:'БРОНЗА / СЕРЕБРО / ЗОЛОТО / РАДУГА', def:'Уровни прокачки навыка. БРОНЗА — 30%+, СЕРЕБРО — 60%+, ЗОЛОТО — 78%+, РАДУГА — 88%+.' },
+  { term:'IQ Game', def:'Игровые ситуации, где надо выбрать правильный ход из 4 вариантов. Тренирует баскетбольное мышление.' }
+];
+
+function openDict() {
+  currentDrillView = 'dict';
+  dictQuery = '';
+  document.getElementById('drillsPanel').classList.remove('hidden');
+  renderDict();
+  document.getElementById('drillsBody').scrollTop = 0;
+}
+
+function renderDict() {
+  const body = document.getElementById('drillsBody');
+  document.getElementById('drillsTitle').textContent = 'СПРАВОЧНИК';
+  const filtered = dictQuery
+    ? DICTIONARY.filter(d => d.term.toLowerCase().includes(dictQuery) || d.def.toLowerCase().includes(dictQuery))
+    : DICTIONARY;
+  let html = `
+    <button class="back-btn" onclick="closeDrills()">← НАЗАД</button>
+    <div class="dict-search">
+      <input type="text" placeholder="Поиск термина..." value="${dictQuery}" oninput="dictSearch(this.value)">
+    </div>
+  `;
+  if (filtered.length === 0) {
+    html += `<div style="text-align:center;padding:30px 10px;color:#666;">Ничего не найдено</div>`;
+  } else {
+    html += filtered.map(d => `
+      <div class="dict-item">
+        <div class="dict-term">${d.term}</div>
+        <div class="dict-def">${d.def}</div>
+      </div>
+    `).join('');
+  }
+  body.innerHTML = html;
+}
+
+function dictSearch(v) {
+  dictQuery = v.toLowerCase().trim();
+  renderDict();
+  const input = document.querySelector('.dict-search input');
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+// ===================== ПАНЕЛЬ ТРЕНИРОВОК =====================
+function openDrills() {
+  document.getElementById('drillsPanel').classList.remove('hidden');
+  currentDrillView = 'list';
+  currentDrillId = null;
+  renderDrills();
+}
+function closeDrills() { document.getElementById('drillsPanel').classList.add('hidden'); }
+
+function renderDrills() {
+  const body = document.getElementById('drillsBody');
+  const title = document.getElementById('drillsTitle');
+
+  if (currentDrillView === 'dict') { renderDict(); return; }
+
+  if (currentDrillView === 'combo-detail' && currentDrillId) {
+    const combo = COMBOS.find(c => c.id === currentDrillId);
+    if (!combo) { currentDrillView = 'list'; renderDrills(); return; }
+    title.textContent = 'КОМБО';
+    body.innerHTML = `
+      <button class="back-btn" onclick="backToDrills()">← НАЗАД</button>
+      <div class="drill-detail">
+        <h2>${combo.title}</h2>
+        <div class="meta">${combo.desc}</div>
+        ${combo.detail.map((s,i) => `
+          <div class="drill-exercise">
+            <div class="drill-exercise-title">ШАГ ${i+1}. ${s.t}</div>
+            <div class="drill-exercise-desc">${s.d}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    return;
+  }
+
+  if (currentDrillView === 'iq') { title.textContent = 'IQ GAME'; renderIQ(body); return; }
+
+  if (currentDrillView === 'detail' && currentDrillId) {
+    const drill = DRILLS.find(d => d.id === currentDrillId);
+    if (!drill) { currentDrillView = 'list'; renderDrills(); return; }
+    title.textContent = 'ТРЕНИРОВКИ';
+    body.innerHTML = `
+      <button class="back-btn" onclick="backToDrills()">← НАЗАД</button>
+      <div class="drill-detail">
+        <h2>${drill.title}</h2>
+        <div class="meta">${drill.badge} · ${drill.desc}</div>
+        ${drill.exercises.map(ex => `
+          <div class="drill-exercise">
+            <div class="drill-exercise-title">${ex.title}</div>
+            <div class="drill-exercise-desc">${ex.desc}</div>
+            <div class="drill-exercise-reps">${ex.reps}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    return;
+  }
+
+  title.textContent = 'ТРЕНИРОВКИ';
+  const normal = DRILLS.filter(d => d.level === 'normal');
+  const beginner = DRILLS.filter(d => d.level === 'beginner');
+
+  let html = '';
+
+  html += `<div class="drill-section-title">СПРАВОЧНИК</div>`;
+  html += `<div class="drill-card" onclick="openDict()" style="border-color:rgba(255,0,60,.4);">
+    <div class="drill-card-title">СЛОВАРЬ ТЕРМИНОВ</div>
+    <div class="drill-card-desc">Все баскетбольные термины простым языком. Поиск по названию и описанию.</div>
+    <span class="drill-card-badge">СПРАВКА</span>
+  </div>`;
+
+  html += `<div class="drill-section-title">IQ GAME</div>`;
+  html += `<div class="drill-card" onclick="openIQ()" style="border-color:rgba(255,0,60,.4);">
+    <div class="drill-card-title">БАСКЕТБОЛЬНЫЙ IQ</div>
+    <div class="drill-card-desc">Случайные ситуации. 4 варианта, 1 правильный. Выбери ход — получи разбор.</div>
+    <span class="drill-card-badge">ИГРА</span>
+  </div>`;
+
+  html += `<div class="drill-section-title">ОДИНОЧНЫЕ КОМБО</div>`;
+  html += COMBOS.map(c => `
+    <div class="combo-card" onclick="openComboDetail('${c.id}')">
+      <div class="combo-title">${c.title}</div>
+      <div class="combo-desc">${c.desc}</div>
+      <div class="combo-steps">${c.steps.map(s => `<span class="combo-step">${s}</span>`).join('')}</div>
+    </div>
+  `).join('');
+
+  html += `<div class="drill-section-title">ОБЫЧНЫЙ УРОВЕНЬ (СОЛО)</div>`;
+  html += normal.map(d => `
+    <div class="drill-card" onclick="openDrillDetail('${d.id}')">
+      <div class="drill-card-title">${d.title}</div>
+      <div class="drill-card-desc">${d.desc}</div>
+      <span class="drill-card-badge">${d.badge}</span>
+    </div>
+  `).join('');
+
+  html += `<div class="drill-subtitle">ДЛЯ НОВИЧКОВ (СОЛО)</div>`;
+  html += beginner.map(d => `
+    <div class="drill-card" onclick="openDrillDetail('${d.id}')">
+      <div class="drill-card-title">${d.title}</div>
+      <div class="drill-card-desc">${d.desc}</div>
+      <span class="drill-card-badge">${d.badge}</span>
+    </div>
+  `).join('');
+
+  body.innerHTML = html;
+}
+
+function openDrillDetail(id) { currentDrillView = 'detail'; currentDrillId = id; renderDrills(); document.getElementById('drillsBody').scrollTop = 0; }
+function openComboDetail(id) { currentDrillView = 'combo-detail'; currentDrillId = id; renderDrills(); document.getElementById('drillsBody').scrollTop = 0; }
+function backToDrills() { currentDrillView = 'list'; currentDrillId = null; renderDrills(); document.getElementById('drillsBody').scrollTop = 0; }
+
+// ===================== IQ GAME =====================
+function openIQ() {
+  currentDrillView = 'iq';
+  iq.correct = 0;
+  iq.total = 0;
+  iq.scenario = IQ_SCENARIOS[Math.floor(Math.random() * IQ_SCENARIOS.length)];
+  iq.answered = false;
+  iq.lastWasCorrect = false;
+  iq.lastReason = '';
+  document.getElementById('drillsBody').scrollTop = 0;
+  renderDrills();
+}
+
+function renderIQ(body) {
+  if (!iq.scenario) { iq.scenario = IQ_SCENARIOS[0]; }
+  const sc = iq.scenario;
+  const scorePct = iq.total > 0 ? Math.round(iq.correct/iq.total*100) : 0;
+
+  let html = `
+    <button class="back-btn" onclick="backToDrills()">← НАЗАД</button>
+    <div class="iq-intro">Читай ситуацию, выбери ОДИН правильный ход. После ответа — разбор.</div>
+    <div class="iq-stats">
+      <div class="iq-stat"><div class="v">${iq.correct}/${iq.total}</div><div class="l">ПРАВИЛЬНО</div></div>
+      <div class="iq-stat"><div class="v">${scorePct}%</div><div class="l">ТОЧНОСТЬ</div></div>
+      <div class="iq-stat"><div class="v">${sc.title}</div><div class="l">СЦЕНАРИЙ</div></div>
+    </div>
+    <div class="iq-situation"><b>${sc.title}.</b> ${sc.situation}</div>
+  `;
+
+  if (iq.answered) {
+    html += `<div class="iq-feedback ${iq.lastWasCorrect ? 'ok' : 'bad'}">${iq.lastReason}</div>`;
+    html += `<button onclick="nextIQ()">СЛЕДУЮЩАЯ СИТУАЦИЯ</button>`;
+  } else {
+    html += `<div class="iq-actions">`;
+    sc.actions.forEach((a, i) => {
+      html += `<button class="iq-action" onclick="answerIQ(${i})">${a.text}</button>`;
+    });
+    html += `</div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+function answerIQ(idx) {
+  const sc = iq.scenario;
+  const a = sc.actions[idx];
+  iq.answered = true;
+  iq.total++;
+  if (a.correct) {
+    iq.correct++;
+    iq.lastWasCorrect = true;
+    iq.lastReason = `<b>ВЕРНО.</b> ${a.reason}`;
+  } else {
+    iq.lastWasCorrect = false;
+    const correctAction = sc.actions.find(x => x.correct);
+    iq.lastReason = `<b>НЕВЕРНО.</b> ${a.reason}<br><br><b>Правильный ход:</b> ${correctAction.text}. ${correctAction.reason}`;
+  }
+  renderDrills();
+}
+
+function nextIQ() {
+  let newSc;
+  let attempts = 0;
+  do {
+    newSc = IQ_SCENARIOS[Math.floor(Math.random() * IQ_SCENARIOS.length)];
+    attempts++;
+  } while (newSc === iq.scenario && attempts < 5);
+  iq.scenario = newSc;
+  iq.answered = false;
+  iq.lastWasCorrect = false;
+  iq.lastReason = '';
+  renderDrills();
+  document.getElementById('drillsBody').scrollTop = 0;
+}
+
+// ===================== LOGOUT / INIT =====================
+function logout() {
+  if (!confirm('Сбросить профиль и план?')) return;
+  ['nh_user','nh_plan','nh_tasks','nh_stats','nh_avatar'].forEach(k => localStorage.removeItem(k));
+  state = {
+    user:null, plan:{}, tasks:{}, activeDay:0, avatar:null,
+    stats:{ ft:{made:0,total:0}, three:{made:0,total:0}, layup:{made:0,total:0}, stepp:{made:0,total:0}, fade:{made:0,total:0}, spin:{made:0,total:0}, mid:{made:0,total:0} }
+  };
+  document.getElementById('dashScreen').classList.add('hidden');
+  document.getElementById('plannerScreen').classList.add('hidden');
+  document.getElementById('drillsFab').classList.add('hidden');
+  document.getElementById('drillsPanel').classList.add('hidden');
+  document.getElementById('regScreen').classList.remove('hidden');
+  document.querySelectorAll('#regScreen input').forEach(i=>i.value='');
+  document.getElementById('f_pos').value = '';
+  document.getElementById('f_level').value = '0';
+}
+
+window.addEventListener('load', () => {
+  initSnow();
+  playIntro();
+  const saved = localStorage.getItem('nh_user');
+  if (saved) {
+    state.user = JSON.parse(saved);
+    state.plan = JSON.parse(localStorage.getItem('nh_plan') || '{"0":[],"1":[],"2":[],"3":[],"4":[],"5":[],"6":[]}');
+    state.tasks = JSON.parse(localStorage.getItem('nh_tasks') || '{}');
+    const defaultStats = { ft:{made:0,total:0}, three:{made:0,total:0}, layup:{made:0,total:0}, stepp:{made:0,total:0}, fade:{made:0,total:0}, spin:{made:0,total:0}, mid:{made:0,total:0} };
+    state.stats = JSON.parse(localStorage.getItem('nh_stats') || JSON.stringify(defaultStats));
+    state.avatar = localStorage.getItem('nh_avatar') || null;
+    showDash();
+  }
+});
+</script>
+</body>
+  </html>
